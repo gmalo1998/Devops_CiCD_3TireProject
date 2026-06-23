@@ -33,3 +33,12 @@ jobs:
 
    - name: Success
      run: echo "Build Started"
+   - name: Frontend Tests
+     run: |
+       cd frontend
+       npm test -- --watchAll=false
+
+   - name: Backend Tests
+     run: |
+       cd backend
+       npm test
