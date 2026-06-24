@@ -6,39 +6,45 @@ on:
       - main
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
 
- build:
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-   runs-on: ubuntu-latest
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-   steps:
+      - name: Install Frontend
+        run: |
+          cd frontend
+          npm install
 
-   - name: Checkout
-     uses: actions/checkout@v4
+      - name: Install Backend
+        run: |
+          cd backend
+          npm install
 
-   - name: Setup Node
-     uses: actions/setup-node@v4
-     with:
-       node-version: 20
+      - name: Success
+        run: echo "Build Started"
 
-   - name: Install Frontend
-     run: |
-       cd frontend
-       npm install
+      - name: Frontend Tests
+        run: |
+          cd frontend
+          npm test
 
-   - name: Install Backend
-     run: |
-       cd backend
-       npm install
+      - name: Backend Tests
+        run: |
+          cd backend
+          npm test
 
-   - name: Success
-     run: echo "Build Started"
-   - name: Frontend Tests
-     run: |
-       cd frontend
-       npm test
-
-   - name: Backend Tests
-     run: |
-       cd backend
-       npm test
+      - name: SonarQube Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          npx sonar-scanner \
+            -Dsonar.host.url=http://192.168.0.78:9000 \
+            -Dsonar.login=$SONAR_TOKEN
