@@ -12,7 +12,7 @@ import { app, server } from "./lib/socket.js";
 
 dotenv.config();
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5001;
 
 app.use(express.json());
 app.use(cookieParser());
@@ -23,7 +23,6 @@ app.use(
       process.env.NODE_ENV === "production"
         ? ["http://chatapp.example.com"]
         : ["http://localhost:5173"],
-
     credentials: true,
   })
 );
@@ -36,7 +35,12 @@ app.get("/", (req, res) => {
   res.send("Backend running");
 });
 
-server.listen(PORT, () => {
-  console.log("server is running on PORT:" + PORT);
-  connectDB();
-});
+// Start only outside tests
+if (process.env.NODE_ENV !== "test") {
+  server.listen(PORT, async () => {
+    console.log(`server running on ${PORT}`);
+    await connectDB();
+  });
+}
+
+export default app;

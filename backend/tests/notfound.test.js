@@ -1,0 +1,19 @@
+import request from "supertest";
+import app from "../src/index.js";
+
+describe("404 Route",()=>{
+
+test("Unknown route",async()=>{
+
+const res =
+await request(app)
+.get("/abcxyz");
+
+expect(
+res.statusCode
+)
+.toBe(404);
+
+});
+
+});
