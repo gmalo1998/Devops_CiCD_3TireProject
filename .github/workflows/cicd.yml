@@ -43,11 +43,11 @@ jobs:
 
       - name: SonarQube Scan
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONARQUBETOKEN}}
         run: |
           npx sonar-scanner \
             -Dsonar.organization=gmalo1998 \
-            -Dsonar.projectKey=gmalo1998_Devops_CiCD_3TireProject \
+            -Dsonar.projectKey=Devops_CiCD_3TireProject \
             -Dsonar.sources=. \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=$SONAR_TOKEN
+            -Dsonar.login=$SONARQUBETOKEN
