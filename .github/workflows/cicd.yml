@@ -10,7 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Pipeline Started
+        run: echo "Build Started"
+
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -18,18 +21,15 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Frontend
+      - name: Install Frontend Dependencies
         run: |
           cd frontend
           npm install
 
-      - name: Install Backend
+      - name: Install Backend Dependencies
         run: |
           cd backend
           npm install
-
-      - name: Success
-        run: echo "Build Started"
 
       - name: Frontend Tests
         run: |
@@ -43,14 +43,14 @@ jobs:
 
       - name: SonarQube Scan
         env:
-          SONAR_TOKEN: ${{ secrets.SONARQUBETOKEN}}
+          SONAR_TOKEN: ${{ secrets.SONARQUBETOKEN }}
         run: |
           npx sonar-scanner \
             -Dsonar.organization=gmalo1998 \
             -Dsonar.projectKey=Devops_CiCD_3TireProject \
             -Dsonar.sources=. \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=$SONARQUBETOKEN
+            -Dsonar.login=$SONAR_TOKEN
 
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -65,3 +65,25 @@ jobs:
         with:
           name: owasp-report
           path: reports
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASS }}
+
+      - name: Build Frontend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-frontend:latest ./frontend
+
+      - name: Push Frontend Image
+        run: |
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-frontend:latest
+
+      - name: Build Backend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-backend:latest ./backend
+
+      - name: Push Backend Image
+        run: |
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-backend:latest
