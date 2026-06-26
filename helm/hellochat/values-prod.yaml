@@ -1,0 +1,59 @@
+namespace: hellochat-production
+
+frontend:
+  name: frontend
+  replicas: 1
+  containerPort: 80
+  image:
+    repository: gmalo98/hellochat-frontend
+    tag: latest
+  service:
+    name: frontend
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+
+
+backend:
+  name: backend
+  replicas: 1
+  containerPort: 5001
+  image:
+    repository: gmalo98/hellochat-backend
+    tag: latest
+  env:
+    NODE_ENV: production
+    MONGODB_URI: mongodb://admin:mongo@mongo:27017/chatApp?authSource=admin
+    JWT_SECRET: your_jwt_secret_key
+    PORT: "5001"
+  service:
+    name: backend
+    type: ClusterIP
+    port: 5001
+    targetPort: 5001
+
+
+mongodb:
+  name: mongodb
+  replicas: 1
+  storage: 1Gi
+  containerPort: 27017
+  image:
+    repository: mongo
+    tag: latest
+  auth:
+    username: admin
+    password: mongo
+  service:
+    name: mongo
+    type: ClusterIP
+    port: 27017
+    targetPort: 27017
+
+
+ingress:
+  enabled: true
+  className: nginx
+  host: hello-chat.com
+  frontendPath: /
+  backendPath: /api

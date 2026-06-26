@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: "{{ .Values.backend.name }}-deployment"
+  namespace: {{ .Values.namespace }}
+
+spec:
+
+  replicas: {{ .Values.backend.replicas }}
+
+  selector:
+    matchLabels:
+      app: {{ .Values.backend.name }}
+
+  template:
+
+    metadata:
+      labels:
+        app: {{ .Values.backend.name }}
+
+    spec:
+
+      containers:
+
+      - name: backend-container
+
+        image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+
+        imagePullPolicy: Always
+
+        ports:
+
+        - containerPort: {{ .Values.backend.containerPort }}
+
+        env:
+
+        - name: NODE_ENV
+          value: "{{ .Values.backend.env.NODE_ENV }}"
+
+        - name: MONGODB_URI
+          value: "{{ .Values.backend.env.MONGODB_URI }}"
+
+        - name: JWT_SECRET
+          value: "{{ .Values.backend.env.JWT_SECRET }}"
+
+        - name: PORT
+          value: "{{ .Values.backend.env.PORT }}"
