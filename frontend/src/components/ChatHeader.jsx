@@ -1,6 +1,11 @@
-import { X, Phone, Video } from "lucide-react";
-import { useAuthStore } from "../store/useAuthStore";
+import {
+  X,
+  Phone,
+  Video,
+} from "lucide-react";
+
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 
 const ChatHeader = () => {
   const {
@@ -13,33 +18,12 @@ const ChatHeader = () => {
   } = useAuthStore();
 
   const isOnline =
-    onlineUsers?.includes(
+    onlineUsers.includes(
       selectedUser?._id
     );
 
   if (!selectedUser) {
-    return (
-      <div
-        className="
-        h-20
-
-        flex
-        items-center
-        justify-center
-
-        border-b
-        border-base-300
-
-        bg-base-100/80
-
-        backdrop-blur-xl
-      "
-      >
-        <p className="opacity-60">
-          Select a conversation
-        </p>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -48,30 +32,28 @@ const ChatHeader = () => {
       sticky
       top-0
 
-      z-20
+      z-30
+
+      bg-base-100/70
+
+      backdrop-blur-xl
 
       border-b
       border-base-300
 
-      bg-base-100/80
-
-      backdrop-blur-xl
+      shadow-md
     "
     >
-      {/* Glow */}
+      {/* TOP GRADIENT */}
 
       <div
         className="
-        absolute
-        top-0
-
-        left-0
-
-        h-[2px]
+        h-[3px]
 
         w-full
 
         bg-gradient-to-r
+
         from-primary
         via-secondary
         to-primary
@@ -80,65 +62,79 @@ const ChatHeader = () => {
 
       <div
         className="
-        px-6
-        py-4
+        px-8
+        py-5
 
         flex
+
         items-center
+
         justify-between
       "
       >
         {/* LEFT */}
 
-        <div className="flex items-center gap-4">
+        <div
+          className="
+          flex
 
-          {/* Avatar */}
+          items-center
 
-          <div className="relative">
+          gap-5
+        "
+        >
+          {/* AVATAR */}
 
+          <div
+            className="
+            relative
+          "
+          >
             <img
               src={
-                selectedUser?.profilePic ||
+                selectedUser
+                  ?.profilePic ||
                 "/avatar.png"
               }
               alt={
-                selectedUser?.fullName
+                selectedUser
+                  ?.fullName
               }
               className="
-                size-14
+              size-16
 
-                rounded-2xl
+              rounded-3xl
 
-                object-cover
+              object-cover
 
-                border
-                border-base-300
+              shadow-xl
 
-                shadow-lg
-              "
+              border
+              border-base-300
+            "
             />
 
-            <div
+            <span
               className={`
               absolute
-              bottom-0
-              right-0
+
+              bottom-1
+              right-1
 
               size-4
 
               rounded-full
 
-              border-2
-              border-base-100
+              ring-4
+              ring-base-100
 
               ${
                 isOnline
                   ? "bg-green-500"
-                  : "bg-gray-500"
+                  : "bg-zinc-500"
               }
             `}
             />
-
           </div>
 
           {/* INFO */}
@@ -147,11 +143,15 @@ const ChatHeader = () => {
 
             <h2
               className="
+              text-xl
+
               font-bold
-              text-lg
             "
             >
-              {selectedUser?.fullName}
+              {
+                selectedUser
+                  ?.fullName
+              }
             </h2>
 
             <p
@@ -163,23 +163,38 @@ const ChatHeader = () => {
             >
               {isOnline
                 ? "Active now"
-                : "Last seen recently"}
+                : "Offline"}
             </p>
 
           </div>
-
         </div>
 
         {/* ACTIONS */}
 
-        <div className="flex items-center gap-2">
+        <div
+          className="
+          flex
 
+          items-center
+
+          gap-3
+        "
+        >
           <button
             className="
             btn
-            btn-ghost
 
             btn-circle
+
+            bg-base-200
+
+            hover:scale-105
+
+            hover:bg-primary
+
+            hover:text-white
+
+            transition
           "
           >
             <Phone size={18} />
@@ -188,9 +203,18 @@ const ChatHeader = () => {
           <button
             className="
             btn
-            btn-ghost
 
             btn-circle
+
+            bg-base-200
+
+            hover:scale-105
+
+            hover:bg-secondary
+
+            hover:text-white
+
+            transition
           "
           >
             <Video size={18} />
@@ -198,26 +222,28 @@ const ChatHeader = () => {
 
           <button
             onClick={() =>
-              setSelectedUser(null)
+              setSelectedUser(
+                null
+              )
             }
             className="
             btn
 
             btn-circle
 
-            btn-ghost
+            bg-base-200
 
-            hover:bg-error/20
-            hover:text-error
+            hover:bg-error
+
+            hover:text-white
+
+            transition
           "
           >
             <X size={18} />
           </button>
-
         </div>
-
       </div>
-
     </div>
   );
 };
