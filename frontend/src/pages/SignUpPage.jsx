@@ -276,7 +276,7 @@ const SignUpPage = () => {
       {/* RIGHT */}
 
       <AuthImagePattern
-        title="Welcome to ChatApp"
+        title="Welcome to HelloChat"
         subtitle="Connect, message and share moments instantly."
       />
 
