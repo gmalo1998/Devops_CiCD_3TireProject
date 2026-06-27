@@ -5,43 +5,53 @@ on:
     branches:
       - main
 
+env:
+  FRONTEND_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-frontend
+  BACKEND_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-backend
+
 jobs:
-  build:
+  build-test-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Pipeline Started
-        run: echo "Build Started"
 
+      # ---------------------------
+      # Checkout & Environment Setup
+      # ---------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # ---------------------------
+      # Install Dependencies
+      # ---------------------------
       - name: Install Frontend Dependencies
-        run: |
-          cd frontend
-          npm install
+        working-directory: frontend
+        run: npm ci
 
       - name: Install Backend Dependencies
-        run: |
-          cd backend
-          npm install
+        working-directory: backend
+        run: npm ci
 
-      - name: Frontend Tests
-        run: |
-          cd frontend
-          npm test
+      # ---------------------------
+      # Run Tests
+      # ---------------------------
+      - name: Run Frontend Tests
+        working-directory: frontend
+        run: npm test -- --watchAll=false
 
-      - name: Backend Tests
-        run: |
-          cd backend
-          npm test
+      - name: Run Backend Tests
+        working-directory: backend
+        run: npm test
 
-      - name: SonarQube Scan
+      # ---------------------------
+      # Code Quality - SonarCloud
+      # ---------------------------
+      - name: SonarCloud Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONARQUBETOKEN }}
         run: |
@@ -52,13 +62,16 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.login=$SONAR_TOKEN
 
+      # ---------------------------
+      # Security Scan
+      # ---------------------------
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: "chatapp"
-          path: "."
-          format: "HTML"
-          out: "reports"
+          project: chatapp
+          path: .
+          format: HTML
+          out: reports
 
       - name: Upload OWASP Report
         uses: actions/upload-artifact@v4
@@ -66,24 +79,63 @@ jobs:
           name: owasp-report
           path: reports
 
+      # ---------------------------
+      # Docker Login
+      # ---------------------------
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASS }}
 
+      # ---------------------------
+      # Build & Push Frontend Image
+      # ---------------------------
       - name: Build Frontend Image
         run: |
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-frontend:latest ./frontend
+          docker build \
+            -t $FRONTEND_IMAGE:${{ github.sha }} \
+            -t $FRONTEND_IMAGE:latest \
+            ./frontend
 
       - name: Push Frontend Image
         run: |
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-frontend:latest
+          docker push $FRONTEND_IMAGE:${{ github.sha }}
+          docker push $FRONTEND_IMAGE:latest
 
+      # ---------------------------
+      # Build & Push Backend Image
+      # ---------------------------
       - name: Build Backend Image
         run: |
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-backend:latest ./backend
+          docker build \
+            -t $BACKEND_IMAGE:${{ github.sha }} \
+            -t $BACKEND_IMAGE:latest \
+            ./backend
 
       - name: Push Backend Image
         run: |
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-backend:latest
+          docker push $BACKEND_IMAGE:${{ github.sha }}
+          docker push $BACKEND_IMAGE:latest
+
+      # ---------------------------
+      # Update Helm Values
+      # ---------------------------
+      - name: Update Helm Image Tag
+        run: |
+          sed -i "s/tag:.*/tag: \"${GITHUB_SHA}\"/" \
+          helm/hellochat/values-prod.yaml
+
+      # ---------------------------
+      # Commit & Push Helm Changes
+      # ---------------------------
+      - name: Commit Helm Changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add helm/hellochat/values-prod.yaml
+
+          git commit -m "Update image tag to ${GITHUB_SHA}" || echo "No changes"
+
+          git push
