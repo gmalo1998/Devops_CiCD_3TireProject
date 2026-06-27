@@ -52,11 +52,16 @@ const ChatContainer = () => {
     unsubscribeFromMessages,
   ]);
 
-  useEffect(() => {
-    messageEndRef.current?.scrollIntoView({
+ useEffect(() => {
+  if (
+    messageEndRef.current &&
+    typeof messageEndRef.current.scrollIntoView === "function"
+  ) {
+    messageEndRef.current.scrollIntoView({
       behavior: "smooth",
     });
-  }, [messages]);
+  }
+}, [messages]);
 
   /* EMPTY */
 
