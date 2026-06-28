@@ -11,6 +11,7 @@ permissions:
   contents: write
 
 env:
+  IMAGE_TAG: ${{ github.sha }}
   FRONTEND_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-frontend
   BACKEND_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-backend
 
@@ -22,228 +23,273 @@ jobs:
 
     steps:
 
-    # ---------------------------
-    # Checkout
-    # ---------------------------
+      # ---------------------------
+      # Checkout
+      # ---------------------------
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Checkout Code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        persist-credentials: true
+      # ---------------------------
+      # Setup Node
+      # ---------------------------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    # ---------------------------
-    # Node Setup
-    # ---------------------------
+      # ---------------------------
+      # Install Dependencies
+      # ---------------------------
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
 
-    - name: Setup Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm ci
 
-    # ---------------------------
-    # Install Frontend
-    # ---------------------------
+      # ---------------------------
+      # Run Tests
+      # ---------------------------
+      - name: Run Frontend Tests
+        working-directory: frontend
+        run: npm test
 
-    - name: Install Frontend Dependencies
-      working-directory: frontend
-      run: npm ci
+      - name: Run Backend Tests
+        working-directory: backend
+        run: npm test
 
-    # ---------------------------
-    # Install Backend
-    # ---------------------------
+      # ---------------------------
+      # SonarCloud
+      # ---------------------------
+      - name: SonarCloud Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBETOKEN }}
+        run: |
+          npx sonar-scanner \
+            -Dsonar.organization=gmalo1998 \
+            -Dsonar.projectKey=Devops_CiCD_3TireProject \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=$SONAR_TOKEN
 
-    - name: Install Backend Dependencies
-      working-directory: backend
-      run: npm ci
+      # ---------------------------
+      # OWASP Scan
+      # ---------------------------
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: chatapp
+          path: .
+          format: HTML
+          out: reports
 
-    # ---------------------------
-    # Frontend Tests
-    # ---------------------------
+      - name: Upload OWASP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-report
+          path: reports
 
-    - name: Run Frontend Tests
-      working-directory: frontend
-      run: |
-        npm test
+      # ---------------------------
+      # Docker Login
+      # ---------------------------
+      - name: Docker Login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASS }}
 
-    # ---------------------------
-    # Backend Tests
-    # ---------------------------
+      # ---------------------------
+      # Build Frontend
+      # ---------------------------
+      - name: Build Frontend Image
+        run: |
+          docker build \
+            -t $FRONTEND_IMAGE:${IMAGE_TAG} \
+            -t $FRONTEND_IMAGE:latest \
+            ./frontend
 
-    - name: Run Backend Tests
-      working-directory: backend
-      run: |
-        npm test
+      # ---------------------------
+      # Trivy Frontend
+      # ---------------------------
+      - name: Scan Frontend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
 
-    # ---------------------------
-    # SonarCloud
-    # ---------------------------
+      # ---------------------------
+      # Push Frontend
+      # ---------------------------
+      - name: Push Frontend Image
+        run: |
+          docker push $FRONTEND_IMAGE:${IMAGE_TAG}
+          docker push $FRONTEND_IMAGE:latest
 
-    - name: SonarCloud Scan
-      env:
-        SONAR_TOKEN: ${{ secrets.SONARQUBETOKEN }}
+      # ---------------------------
+      # Build Backend
+      # ---------------------------
+      - name: Build Backend Image
+        run: |
+          docker build \
+            -t $BACKEND_IMAGE:${IMAGE_TAG} \
+            -t $BACKEND_IMAGE:latest \
+            ./backend
 
-      run: |
+      # ---------------------------
+      # Trivy Backend
+      # ---------------------------
+      - name: Scan Backend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
 
-        npx sonar-scanner \
-          -Dsonar.organization=gmalo1998 \
-          -Dsonar.projectKey=Devops_CiCD_3TireProject \
-          -Dsonar.sources=. \
-          -Dsonar.host.url=https://sonarcloud.io \
-          -Dsonar.login=$SONAR_TOKEN
+      # ---------------------------
+      # Push Backend
+      # ---------------------------
+      - name: Push Backend Image
+        run: |
+          docker push $BACKEND_IMAGE:${IMAGE_TAG}
+          docker push $BACKEND_IMAGE:latest
 
-    # ---------------------------
-    # OWASP Scan
-    # ---------------------------
+      # ---------------------------
+      # Install Helm
+      # ---------------------------
+      - name: Install Helm
+        uses: azure/setup-helm@v4
 
-    - name: OWASP Dependency Check
-      uses: dependency-check/Dependency-Check_Action@main
+      # ---------------------------
+      # Install yq
+      # ---------------------------
+      - name: Install yq
+        run: |
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+          -O /usr/local/bin/yq
 
-      with:
-        project: chatapp
-        path: .
-        format: HTML
-        out: reports
+          chmod +x /usr/local/bin/yq
 
-    # ---------------------------
-    # Upload Report
-    # ---------------------------
+      # ---------------------------
+      # Helm Validation
+      # ---------------------------
+      - name: Helm Lint
+        run: |
+          helm lint \
+          helm/hellochat \
+          -f helm/hellochat/values-prod.yaml
 
-    - name: Upload OWASP Report
-      uses: actions/upload-artifact@v4
+      - name: Helm Template
+        run: |
+          helm template \
+          hellochat \
+          helm/hellochat \
+          -f helm/hellochat/values-prod.yaml
 
-      with:
-        name: owasp-report
-        path: reports
+      # ---------------------------
+      # Update Helm Tags
+      # ---------------------------
+      - name: Update Helm Image Tag
+        run: |
 
-    # ---------------------------
-    # Docker Login
-    # ---------------------------
+          yq e -i '
+          .frontend.image.tag = strenv(IMAGE_TAG) |
+          .backend.image.tag = strenv(IMAGE_TAG)
+          ' helm/hellochat/values-prod.yaml
 
-    - name: Docker Login
-      uses: docker/login-action@v3
+      # ---------------------------
+      # Commit Helm Changes
+      # ---------------------------
+      - name: Commit Helm Changes
+        run: |
 
-      with:
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_PASS }}
+          git config user.name "github-actions[bot]"
 
-    # ---------------------------
-    # Build Frontend
-    # ---------------------------
+          git config user.email \
+          "41898282+github-actions[bot]@users.noreply.github.com"
 
-    - name: Build Frontend Image
-      run: |
+          git add \
+          helm/hellochat/values-prod.yaml
 
-        docker build \
-        -t $FRONTEND_IMAGE:${{ github.sha }} \
-        -t $FRONTEND_IMAGE:latest \
-        ./frontend
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit \
+            -m "Update image tag ${IMAGE_TAG}"
 
-    # ---------------------------
-    # Push Frontend
-    # ---------------------------
+            git push \
+            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          fi
 
-    - name: Push Frontend Image
-      run: |
+      # ---------------------------
+      # Email Success
+      # ---------------------------
+      - name: Send Success Email
+        if: success()
 
-        docker push \
-        $FRONTEND_IMAGE:${{ github.sha }}
+        uses: dawidd6/action-send-mail@v3
 
-        docker push \
-        $FRONTEND_IMAGE:latest
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
 
-    # ---------------------------
-    # Build Backend
-    # ---------------------------
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASS }}
 
-    - name: Build Backend Image
-      run: |
+          secure: true
 
-        docker build \
-        -t $BACKEND_IMAGE:${{ github.sha }} \
-        -t $BACKEND_IMAGE:latest \
-        ./backend
+          subject: |
+            ✅ ChatApp Pipeline PASSED
 
-    # ---------------------------
-    # Push Backend
-    # ---------------------------
+          to: ${{ secrets.EMAIL_TO }}
 
-    - name: Push Backend Image
-      run: |
+          from: GitHub Actions
 
-        docker push \
-        $BACKEND_IMAGE:${{ github.sha }}
+          body: |
+            Pipeline SUCCESS
 
-        docker push \
-        $BACKEND_IMAGE:latest
+            Repo: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
 
-    # ---------------------------
-    # Install Helm
-    # ---------------------------
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-    - name: Install Helm
-      uses: azure/setup-helm@v4
+      # ---------------------------
+      # Email Failure
+      # ---------------------------
+      - name: Send Failure Email
+        if: always() && failure()
 
-    # ---------------------------
-    # Validate Helm
-    # ---------------------------
+        uses: dawidd6/action-send-mail@v3
 
-    - name: Helm Lint
-      run: |
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
 
-        helm lint \
-        helm/hellochat \
-        -f helm/hellochat/values-prod.yaml
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASS }}
 
-    - name: Helm Template
-      run: |
+          secure: true
 
-        helm template \
-        hellochat \
-        helm/hellochat \
-        -f helm/hellochat/values-prod.yaml
+          subject: |
+            ❌ ChatApp Pipeline FAILED
 
-    # ---------------------------
-    # Update Helm Tag
-    # ---------------------------
+          to: ${{ secrets.EMAIL_TO }}
 
-    - name: Update Helm Image Tag
+          from: GitHub Actions
 
-      run: |
+          body: |
+            Pipeline FAILED
 
-        sed -i \
-        "/frontend:/,/tag:/ s/tag:.*/tag: \"${GITHUB_SHA}\"/" \
-        helm/hellochat/values-prod.yaml
+            Repo: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
 
-        sed -i \
-        "/backend:/,/tag:/ s/tag:.*/tag: \"${GITHUB_SHA}\"/" \
-        helm/hellochat/values-prod.yaml
-
-        cat helm/hellochat/values-prod.yaml
-
-    # ---------------------------
-    # Commit Helm Update
-    # ---------------------------
-
-    - name: Commit Helm Changes
-
-      run: |
-
-        git config \
-        user.name \
-        "github-actions[bot]"
-
-        git config \
-        user.email \
-        "41898282+github-actions[bot]@users.noreply.github.com"
-
-        git add \
-        helm/hellochat/values-prod.yaml
-
-        git diff --cached --quiet && exit 0
-
-        git commit \
-        -m "Update image tag ${GITHUB_SHA}"
-
-        git push \
-        https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
