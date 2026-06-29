@@ -1,26 +1,23 @@
 namespace: hellochat-production
-
 frontend:
   name: frontend
   replicas: 1
   containerPort: 80
   image:
     repository: gmalo98/hellochat-frontend
-    tag: "63fda5e4c37ea29d40f2be76b287ef12e25c828f"
+    tag: "8b58fb51e2954d51d8c006000a9ee157bf024799"
   service:
     name: frontend
     type: ClusterIP
     port: 80
     targetPort: 80
-
-
 backend:
   name: backend
   replicas: 1
   containerPort: 5001
   image:
     repository: gmalo98/hellochat-backend
-    tag: "63fda5e4c37ea29d40f2be76b287ef12e25c828f"
+    tag: "8b58fb51e2954d51d8c006000a9ee157bf024799"
   env:
     NODE_ENV: production
     MONGODB_URI: mongodb://admin:mongo@mongo:27017/chatApp?authSource=admin
@@ -31,8 +28,6 @@ backend:
     type: ClusterIP
     port: 5001
     targetPort: 5001
-
-
 mongodb:
   name: mongodb
   replicas: 1
@@ -49,8 +44,6 @@ mongodb:
     type: ClusterIP
     port: 27017
     targetPort: 27017
-
-
 ingress:
   enabled: true
   className: nginx
