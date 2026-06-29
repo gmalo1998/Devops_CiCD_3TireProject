@@ -78,7 +78,7 @@ jobs:
           echo "Installing"
           npm ci
           echo "Updating Undici"
-          npm install undici@6.27.0 --save
+       
           echo "Package"
           cat package.json
           echo "Package Lock"
@@ -195,6 +195,7 @@ jobs:
           echo "Backend Images"
           docker images
 
+
       - name: Verify Backend Image
         run: |
           echo "Node"
@@ -205,6 +206,36 @@ jobs:
           docker run --rm $BACKEND_IMAGE:${IMAGE_TAG} npm ls undici || true
           echo "Package"
           docker run --rm $BACKEND_IMAGE:${IMAGE_TAG} cat package.json || true
+
+      - name: Debug Backend Image Contents
+        run: |
+
+          echo "=== ROOT PACKAGE.JSON ==="
+
+          docker run --rm \
+          $BACKEND_IMAGE:${IMAGE_TAG} \
+          sh -c "cat /app/package.json || true"
+
+          echo ""
+          echo "=== LOCK FILE ==="
+
+          docker run --rm \
+          $BACKEND_IMAGE:${IMAGE_TAG} \
+          sh -c "grep undici /app/package-lock.json || true"
+
+          echo ""
+          echo "=== INSTALLED PACKAGE ==="
+
+          docker run --rm \
+          $BACKEND_IMAGE:${IMAGE_TAG} \
+          sh -c "npm ls undici || true"
+
+          echo ""
+          echo "=== SEARCH ALL PACKAGE FILES ==="
+
+          docker run --rm \
+          $BACKEND_IMAGE:${IMAGE_TAG} \
+          sh -c "find /app -name package.json -exec grep -H undici {} \; || true"
 
       - name: Scan Backend Image
         uses: aquasecurity/trivy-action@master
