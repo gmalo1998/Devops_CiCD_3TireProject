@@ -118,7 +118,8 @@ jobs:
         run: |
           docker run --rm \
           $FRONTEND_IMAGE:${IMAGE_TAG} \
-          npm -v
+          nginx -v
+
 
       - name: Scan Frontend Image
         uses: aquasecurity/trivy-action@master
