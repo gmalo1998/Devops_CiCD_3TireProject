@@ -266,7 +266,7 @@ jobs:
       - name: Clear Trivy Cache
         run: |
           rm -rf ~/.cache/trivy
-          docker system prune -af
+          
 
       - name: Export Backend Trivy Report
         uses: aquasecurity/trivy-action@master
