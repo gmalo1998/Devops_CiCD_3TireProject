@@ -3,16 +3,16 @@
 # =========================
 FROM node:24-alpine AS builder
 
-# Working directory
 WORKDIR /app
 
-# Update OS packages first
-RUN apk upgrade --no-cache
+# Update OS + npm
+RUN apk upgrade --no-cache && \
+    npm install -g npm@latest
 
-# Copy dependency files
+# Copy dependencies
 COPY package*.json ./
 
-# Install production dependencies only
+# Clean install
 RUN npm ci --omit=dev && \
     npm cache clean --force
 
@@ -26,34 +26,34 @@ FROM node:24-alpine
 
 WORKDIR /app
 
-# Update packages and install curl for healthcheck
+# Update runtime packages + npm
 RUN apk upgrade --no-cache && \
-    apk add --no-cache curl
+    apk add --no-cache curl && \
+    npm install -g npm@latest
 
-# Create non-root user
+# Non-root user
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup
 
-# Copy only required artifacts
+# Copy only required files
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app ./
+COPY --from=builder /app/src ./src
 
-# Environment
+# If you have other folders:
+# COPY --from=builder /app/routes ./routes
+# COPY --from=builder /app/controllers ./controllers
+
 ENV NODE_ENV=production
 
-# Expose application port
 EXPOSE 5001
 
-# Run as non-root
 USER appuser
 
-# Health check
 HEALTHCHECK --interval=30s \
   --timeout=10s \
   --start-period=10s \
   --retries=3 \
   CMD curl -fsS http://localhost:5001/health || exit 1
 
-# Start application
-CMD ["npm", "start"]
+CMD ["npm","start"]
