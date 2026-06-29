@@ -51,6 +51,14 @@ jobs:
         run: npm ci
 
       # ---------------------------
+      # Verify Dependency Fix
+      # ---------------------------
+      - name: Verify Backend Dependencies
+        working-directory: backend
+        run: |
+          npm ls undici
+
+      # ---------------------------
       # Run Tests
       # ---------------------------
       - name: Run Frontend Tests
@@ -76,7 +84,7 @@ jobs:
             -Dsonar.login=$SONAR_TOKEN
 
       # ---------------------------
-      # OWASP
+      # OWASP Dependency Check
       # ---------------------------
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -102,48 +110,71 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_PASS }}
 
       # ---------------------------
-      # Frontend
+      # Build Frontend
       # ---------------------------
       - name: Build Frontend Image
         run: |
           docker build \
+          --no-cache \
           -t $FRONTEND_IMAGE:${IMAGE_TAG} \
           -t $FRONTEND_IMAGE:latest \
           ./frontend
 
+      # ---------------------------
+      # Scan Frontend
+      # ---------------------------
       - name: Scan Frontend Image
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
           format: table
-          exit-code: 1
-          ignore-unfixed: true
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
 
+      # ---------------------------
+      # Push Frontend
+      # ---------------------------
       - name: Push Frontend Image
         run: |
           docker push $FRONTEND_IMAGE:${IMAGE_TAG}
           docker push $FRONTEND_IMAGE:latest
 
       # ---------------------------
-      # Backend
+      # Build Backend
       # ---------------------------
       - name: Build Backend Image
         run: |
           docker build \
+          --no-cache \
           -t $BACKEND_IMAGE:${IMAGE_TAG} \
           -t $BACKEND_IMAGE:latest \
           ./backend
 
+      # ---------------------------
+      # Verify Image Content
+      # ---------------------------
+      - name: Verify Backend Image
+        run: |
+          docker run --rm \
+          $BACKEND_IMAGE:${IMAGE_TAG} \
+          npm ls undici
+
+      # ---------------------------
+      # Scan Backend
+      # ---------------------------
       - name: Scan Backend Image
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
           format: table
-          exit-code: 1
-          ignore-unfixed: true
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
 
+      # ---------------------------
+      # Push Backend
+      # ---------------------------
       - name: Push Backend Image
         run: |
           docker push $BACKEND_IMAGE:${IMAGE_TAG}
@@ -157,13 +188,16 @@ jobs:
 
       - name: Install yq
         run: |
-          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+          wget \
+          https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
           -O /usr/local/bin/yq
+
           chmod +x /usr/local/bin/yq
 
       - name: Helm Lint
         run: |
-          helm lint helm/hellochat \
+          helm lint \
+          helm/hellochat \
           -f helm/hellochat/values-prod.yaml
 
       - name: Helm Template
@@ -173,7 +207,7 @@ jobs:
           -f helm/hellochat/values-prod.yaml
 
       # ---------------------------
-      # Update Helm Tags
+      # Update Helm Tag
       # ---------------------------
       - name: Update Helm Image Tag
         run: |
@@ -190,16 +224,16 @@ jobs:
 
           git add helm/hellochat/values-prod.yaml
 
-          if git diff --cached --quiet; then
+          if git diff --cached --quiet
+          then
             echo "No changes"
           else
             git commit -m "Update image tag ${IMAGE_TAG}"
-            git push \
-            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+            git push
           fi
 
       # ---------------------------
-      # Email Success
+      # Success Email
       # ---------------------------
       - name: Send Success Email
         if: success()
@@ -212,20 +246,18 @@ jobs:
           password: ${{ secrets.EMAIL_PASSWORD }}
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: GitHub Actions
-          subject: "✅ Deployment Successful"
+          subject: "Deployment Successful"
 
           body: |
-            CI/CD Pipeline completed successfully.
-
+            CI/CD completed successfully
             Repository: ${{ github.repository }}
-            Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
 
       # ---------------------------
-      # Email Failure
+      # Failure Email
       # ---------------------------
       - name: Send Failure Email
-        if: always() && failure()
+        if: failure()
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -235,11 +267,9 @@ jobs:
           password: ${{ secrets.EMAIL_PASSWORD }}
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: GitHub Actions
-          subject: "❌ Deployment Failed"
+          subject: "Deployment Failed"
 
           body: |
-            CI/CD Pipeline failed.
-
+            CI/CD failed
             Repository: ${{ github.repository }}
-            Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
