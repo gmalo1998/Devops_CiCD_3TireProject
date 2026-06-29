@@ -16,32 +16,22 @@ env:
   BACKEND_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/hellochat-backend
 
 jobs:
-
   build-test-push:
-
     runs-on: ubuntu-latest
 
     steps:
-
-      # ==========================
-      # Checkout
-      # ==========================
-      - name: Checkout Code
+      # ── Checkout & Setup ──────────────────────────────────────────────
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ==========================
-      # Node Setup
-      # ==========================
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # ==========================
-      # Install Dependencies
-      # ==========================
+      # ── Install Dependencies ──────────────────────────────────────────
       - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
@@ -50,9 +40,7 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      # ==========================
-      # Tests
-      # ==========================
+      # ── Tests ─────────────────────────────────────────────────────────
       - name: Run Frontend Tests
         working-directory: frontend
         run: npm run test -- --run
@@ -61,23 +49,18 @@ jobs:
         working-directory: backend
         run: npm test
 
-      # ==========================
-      # SonarCloud
-      # ==========================
+      # ── Code Quality ──────────────────────────────────────────────────
       - name: SonarCloud Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONARQUBETOKEN }}
         run: |
           npx sonar-scanner \
-          -Dsonar.organization=gmalo1998 \
-          -Dsonar.projectKey=Devops_CiCD_3TireProject \
-          -Dsonar.sources=. \
-          -Dsonar.host.url=https://sonarcloud.io \
-          -Dsonar.login=$SONAR_TOKEN
+            -Dsonar.organization=gmalo1998 \
+            -Dsonar.projectKey=Devops_CiCD_3TireProject \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=$SONAR_TOKEN
 
-      # ==========================
-      # OWASP Dependency Check
-      # ==========================
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
@@ -92,19 +75,14 @@ jobs:
           name: owasp-report
           path: reports
 
-      # ==========================
-      # Docker Login
-      # ==========================
+      # ── Docker Login ──────────────────────────────────────────────────
       - name: Docker Login
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASS }}
 
-      # =====================================================
-      # FRONTEND
-      # =====================================================
-
+      # ── Frontend ──────────────────────────────────────────────────────
       - name: Build Frontend Image
         run: |
           docker build \
@@ -116,17 +94,14 @@ jobs:
 
       - name: Verify Frontend Image
         run: |
-          docker run --rm \
-          $FRONTEND_IMAGE:${IMAGE_TAG} \
-          nginx -v
-
+          docker run --rm $FRONTEND_IMAGE:${IMAGE_TAG} nginx -v
 
       - name: Scan Frontend Image
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}
           format: table
-          severity: CRITICAL,HIGH
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: 1
 
@@ -135,10 +110,7 @@ jobs:
           docker push $FRONTEND_IMAGE:${IMAGE_TAG}
           docker push $FRONTEND_IMAGE:latest
 
-      # =====================================================
-      # BACKEND
-      # =====================================================
-
+      # ── Backend ───────────────────────────────────────────────────────
       - name: Build Backend Image
         run: |
           docker build \
@@ -150,101 +122,84 @@ jobs:
 
       - name: Verify Backend Image
         run: |
-          docker run --rm \
-          $BACKEND_IMAGE:${IMAGE_TAG} \
-          npm -v
-
-          docker run --rm \
-          $BACKEND_IMAGE:${IMAGE_TAG} \
-          npm ls -g undici || true
+          docker run --rm $BACKEND_IMAGE:${IMAGE_TAG} node -v
+          docker run --rm $BACKEND_IMAGE:${IMAGE_TAG} npm -v
+          docker run --rm $BACKEND_IMAGE:${IMAGE_TAG} sh -c "npm ls undici || true"
 
       - name: Scan Backend Image
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
           format: table
-          severity: CRITICAL,HIGH
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
+          scanners: vuln
           exit-code: 1
+
+      - name: Export Backend Trivy Report
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}
+          format: json
+          output: trivy-backend.json
+          exit-code: 0
+
+      - name: Upload Backend Trivy Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-backend-report
+          path: trivy-backend.json
 
       - name: Push Backend Image
         run: |
           docker push $BACKEND_IMAGE:${IMAGE_TAG}
           docker push $BACKEND_IMAGE:latest
 
-      # ==========================
-      # Install Helm
-      # ==========================
+      # ── Helm ──────────────────────────────────────────────────────────
       - name: Install Helm
         uses: azure/setup-helm@v4
 
       - name: Install yq
         run: |
-          wget \
-          https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
-          -O /usr/local/bin/yq
-
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+            -O /usr/local/bin/yq
           chmod +x /usr/local/bin/yq
 
-      # ==========================
-      # Helm Validation
-      # ==========================
       - name: Helm Lint
         run: |
-          helm lint \
-          helm/hellochat \
-          -f helm/hellochat/values-prod.yaml
+          helm lint helm/hellochat -f helm/hellochat/values-prod.yaml
 
       - name: Helm Template
         run: |
-          helm template hellochat \
-          helm/hellochat \
-          -f helm/hellochat/values-prod.yaml
+          helm template hellochat helm/hellochat -f helm/hellochat/values-prod.yaml
 
-      # ==========================
-      # Update Helm Tags
-      # ==========================
       - name: Update Helm Image Tag
         run: |
           yq e -i '
-          .frontend.image.tag = strenv(IMAGE_TAG) |
-          .backend.image.tag = strenv(IMAGE_TAG)
+            .frontend.image.tag = strenv(IMAGE_TAG) |
+            .backend.image.tag = strenv(IMAGE_TAG)
           ' helm/hellochat/values-prod.yaml
 
-      # ==========================
-      # Commit Helm
-      # ==========================
       - name: Commit Helm Changes
         run: |
-
-          git config user.name "github-actions[bot]"
-
-          git config user.email \
-          "41898282+github-actions[bot]@users.noreply.github.com"
-
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add helm/hellochat/values-prod.yaml
-
-          if git diff --cached --quiet
-          then
+          if git diff --cached --quiet; then
             echo "No changes"
           else
             git commit -m "Update image tag ${IMAGE_TAG}"
-
-            git push \
-            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+            git push https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
           fi
 
-      # ==========================
-      # Cleanup
-      # ==========================
+      # ── Cleanup ───────────────────────────────────────────────────────
       - name: Cleanup Docker
         if: always()
-        run: |
-          docker system prune -af
+        run: docker system prune -af
 
-      # ==========================
-      # Success Mail
-      # ==========================
+      # ── Notifications ─────────────────────────────────────────────────
       - name: Send Success Email
         if: success()
         uses: dawidd6/action-send-mail@v3
@@ -256,18 +211,9 @@ jobs:
           password: ${{ secrets.EMAIL_PASSWORD }}
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: GitHub Actions
-          subject: "✅ Deployment Successful"
+          subject: Deployment Successful
+          body: CI/CD completed successfully
 
-          body: |
-            CI/CD completed successfully
-
-            Repo: ${{ github.repository }}
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-
-      # ==========================
-      # Failure Mail
-      # ==========================
       - name: Send Failure Email
         if: failure()
         uses: dawidd6/action-send-mail@v3
@@ -279,11 +225,5 @@ jobs:
           password: ${{ secrets.EMAIL_PASSWORD }}
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: GitHub Actions
-          subject: "❌ Deployment Failed"
-
-          body: |
-            CI/CD failed
-
-            Repo: ${{ github.repository }}
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
+          subject: Deployment Failed
+          body: CI/CD failed
