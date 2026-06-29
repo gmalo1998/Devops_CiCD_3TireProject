@@ -37,7 +37,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       # ---------------------------
       # Install Dependencies
@@ -76,7 +76,7 @@ jobs:
             -Dsonar.login=$SONAR_TOKEN
 
       # ---------------------------
-      # OWASP Scan
+      # OWASP
       # ---------------------------
       - name: OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -102,18 +102,15 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_PASS }}
 
       # ---------------------------
-      # Build Frontend
+      # Frontend
       # ---------------------------
       - name: Build Frontend Image
         run: |
           docker build \
-            -t $FRONTEND_IMAGE:${IMAGE_TAG} \
-            -t $FRONTEND_IMAGE:latest \
-            ./frontend
+          -t $FRONTEND_IMAGE:${IMAGE_TAG} \
+          -t $FRONTEND_IMAGE:latest \
+          ./frontend
 
-      # ---------------------------
-      # Trivy Frontend
-      # ---------------------------
       - name: Scan Frontend Image
         uses: aquasecurity/trivy-action@master
         with:
@@ -123,27 +120,21 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
-      # ---------------------------
-      # Push Frontend
-      # ---------------------------
       - name: Push Frontend Image
         run: |
           docker push $FRONTEND_IMAGE:${IMAGE_TAG}
           docker push $FRONTEND_IMAGE:latest
 
       # ---------------------------
-      # Build Backend
+      # Backend
       # ---------------------------
       - name: Build Backend Image
         run: |
           docker build \
-            -t $BACKEND_IMAGE:${IMAGE_TAG} \
-            -t $BACKEND_IMAGE:latest \
-            ./backend
+          -t $BACKEND_IMAGE:${IMAGE_TAG} \
+          -t $BACKEND_IMAGE:latest \
+          ./backend
 
-      # ---------------------------
-      # Trivy Backend
-      # ---------------------------
       - name: Scan Backend Image
         uses: aquasecurity/trivy-action@master
         with:
@@ -153,43 +144,31 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
-      # ---------------------------
-      # Push Backend
-      # ---------------------------
       - name: Push Backend Image
         run: |
           docker push $BACKEND_IMAGE:${IMAGE_TAG}
           docker push $BACKEND_IMAGE:latest
 
       # ---------------------------
-      # Install Helm
+      # Helm
       # ---------------------------
       - name: Install Helm
         uses: azure/setup-helm@v4
 
-      # ---------------------------
-      # Install yq
-      # ---------------------------
       - name: Install yq
         run: |
           wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
           -O /usr/local/bin/yq
-
           chmod +x /usr/local/bin/yq
 
-      # ---------------------------
-      # Helm Validation
-      # ---------------------------
       - name: Helm Lint
         run: |
-          helm lint \
-          helm/hellochat \
+          helm lint helm/hellochat \
           -f helm/hellochat/values-prod.yaml
 
       - name: Helm Template
         run: |
-          helm template \
-          hellochat \
+          helm template hellochat \
           helm/hellochat \
           -f helm/hellochat/values-prod.yaml
 
@@ -198,32 +177,23 @@ jobs:
       # ---------------------------
       - name: Update Helm Image Tag
         run: |
-
           yq e -i '
           .frontend.image.tag = strenv(IMAGE_TAG) |
           .backend.image.tag = strenv(IMAGE_TAG)
           ' helm/hellochat/values-prod.yaml
 
-      # ---------------------------
-      # Commit Helm Changes
-      # ---------------------------
       - name: Commit Helm Changes
         run: |
-
           git config user.name "github-actions[bot]"
-
           git config user.email \
           "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add \
-          helm/hellochat/values-prod.yaml
+          git add helm/hellochat/values-prod.yaml
 
           if git diff --cached --quiet; then
-            echo "No changes to commit"
+            echo "No changes"
           else
-            git commit \
-            -m "Update image tag ${IMAGE_TAG}"
-
+            git commit -m "Update image tag ${IMAGE_TAG}"
             git push \
             https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
           fi
@@ -233,63 +203,43 @@ jobs:
       # ---------------------------
       - name: Send Success Email
         if: success()
-
         uses: dawidd6/action-send-mail@v3
-
         with:
           server_address: smtp.gmail.com
           server_port: 465
-
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASS }}
-
           secure: true
-
-          subject: |
-            ✅ ChatApp Pipeline PASSED
-
-          to: ${{ secrets.EMAIL_TO }}
-
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: GitHub Actions
+          subject: "✅ Deployment Successful"
 
           body: |
-            Pipeline SUCCESS
+            CI/CD Pipeline completed successfully.
 
-            Repo: ${{ github.repository }}
+            Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       # ---------------------------
       # Email Failure
       # ---------------------------
       - name: Send Failure Email
         if: always() && failure()
-
         uses: dawidd6/action-send-mail@v3
-
         with:
           server_address: smtp.gmail.com
           server_port: 465
-
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASS }}
-
           secure: true
-
-          subject: |
-            ❌ ChatApp Pipeline FAILED
-
-          to: ${{ secrets.EMAIL_TO }}
-
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: GitHub Actions
+          subject: "❌ Deployment Failed"
 
           body: |
-            Pipeline FAILED
+            CI/CD Pipeline failed.
 
-            Repo: ${{ github.repository }}
+            Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

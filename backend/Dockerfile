@@ -1,41 +1,59 @@
+# =========================
 # Stage 1: Build
-FROM node:18-alpine AS builder
+# =========================
+FROM node:24-alpine AS builder
 
-# Set working directory
+# Working directory
 WORKDIR /app
 
-# Install dependencies
-COPY package.json package-lock.json ./
-RUN npm ci --only=production
+# Update OS packages first
+RUN apk upgrade --no-cache
 
-# Copy source code
+# Copy dependency files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --omit=dev && \
+    npm cache clean --force
+
+# Copy source
 COPY . .
 
-# Stage 2: Production
-FROM node:18-alpine
+# =========================
+# Stage 2: Runtime
+# =========================
+FROM node:24-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Create a non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Update packages and install curl for healthcheck
+RUN apk upgrade --no-cache && \
+    apk add --no-cache curl
 
-# Copy dependencies from builder
+# Create non-root user
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
+
+# Copy only required artifacts
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
 COPY --from=builder /app ./
 
-# Set environment variables
+# Environment
 ENV NODE_ENV=production
 
-# Expose port
+# Expose application port
 EXPOSE 5001
 
-# Switch to non-root user
+# Run as non-root
 USER appuser
 
-# Start the server
-CMD ["npm", "start"]
-
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5001/health || exit 1
+HEALTHCHECK --interval=30s \
+  --timeout=10s \
+  --start-period=10s \
+  --retries=3 \
+  CMD curl -fsS http://localhost:5001/health || exit 1
+
+# Start application
+CMD ["npm", "start"]
