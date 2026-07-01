@@ -70,7 +70,7 @@ jobs:
           path: reports
 
   # ==========================
-  # JOB 2: Build & Push Frontend (Calls Reusable Workflow)
+  # JOB 2: Build & Push Frontend
   # ==========================
   build-push-frontend:
     needs: code-quality-and-tests
@@ -84,7 +84,7 @@ jobs:
       DOCKER_HUB_PASS: ${{ secrets.DOCKER_HUB_PASS }}
 
   # ==========================
-  # JOB 3: Build & Push Backend (Calls Reusable Workflow)
+  # JOB 3: Build & Push Backend
   # ==========================
   build-push-backend:
     needs: code-quality-and-tests
@@ -101,8 +101,11 @@ jobs:
   # JOB 4: Update Helm
   # ==========================
   update-helm:
-    needs: [build-push-frontend, build-push-backend]
+    needs:
+      - build-push-frontend
+      - build-push-backend
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -113,6 +116,7 @@ jobs:
         run: |
           wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
           chmod +x /usr/local/bin/yq
+
           yq e -i '
             .frontend.image.tag = strenv(IMAGE_TAG) |
             .backend.image.tag = strenv(IMAGE_TAG)
@@ -122,19 +126,22 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add helm/hellochat/values-prod.yaml
+
           if ! git diff --cached --quiet; then
             git commit -m "Update image tag ${IMAGE_TAG}"
             git push https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
           fi
 
   # ==========================
-  # JOB 5: Notifications
+  # JOB 5: Notification
   # ==========================
   notify:
     needs: update-helm
     if: always()
     runs-on: ubuntu-latest
+
     steps:
       - name: Send Notification Email
         uses: dawidd6/action-send-mail@v3
@@ -144,11 +151,12 @@ jobs:
           secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
+          from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
           to: ${{ secrets.NOTIFICATION_EMAIL }}
-          from: GitHub Actions
-          subject: "${{ needs.update-helm.result == 'success' && '✅ Deployment Successful' || '❌ Deployment Failed' }}"
+          subject: Deployment Status - ${{ needs.update-helm.result }}
           body: |
             CI/CD finished with status: ${{ needs.update-helm.result }}
-            Repo: ${{ github.repository }}
+
+            Repository: ${{ github.repository }}
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}

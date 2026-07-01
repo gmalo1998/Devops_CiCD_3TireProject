@@ -279,7 +279,7 @@ const LoginPage = () => {
 
       <AuthImagePattern
         title="Continue Your Journey"
-        subtitle="Reconnect with friends and continue your conversations instantly."
+        subtitle="Distance may pause a conversation, but true connections never fade. Pick up where you left off and create new memories together."
       />
 
     </div>
