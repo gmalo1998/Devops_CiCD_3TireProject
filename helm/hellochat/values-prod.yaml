@@ -5,7 +5,7 @@ frontend:
   containerPort: 80
   image:
     repository: gmalo98/hellochat-frontend
-    tag: "8b58fb51e2954d51d8c006000a9ee157bf024799"
+    tag: "d9c7ab48a297560534c2d3468331eae10470db8c"
   service:
     name: frontend
     type: ClusterIP
@@ -17,7 +17,7 @@ backend:
   containerPort: 5001
   image:
     repository: gmalo98/hellochat-backend
-    tag: "8b58fb51e2954d51d8c006000a9ee157bf024799"
+    tag: "d9c7ab48a297560534c2d3468331eae10470db8c"
   env:
     NODE_ENV: production
     MONGODB_URI: mongodb://admin:mongo@mongo:27017/chatApp?authSource=admin
